@@ -1,0 +1,50 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Python: Debug Phantom",
+            "type": "debugpy", 
+            "request": "launch",
+            "program": "${file}",  // Your Python program
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONHASHSEED": "1"  // This replicates the export command from the phantom script
+            },
+        },
+        {
+            "name": "Python: Debug Phantom ALL CODE",
+            "type": "debugpy", 
+            "request": "launch",
+            "program": "${file}",  // Your Python program
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONHASHSEED": "1"  // This replicates the export command from the phantom script
+            },
+        },
+        {
+            "name": "Python: Debug Phantom Test",
+            "type": "debugpy", 
+            "request": "launch",
+            "program": "${file}",  // Your Python program
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONHASHSEED": "1"  // This replicates the export command from the phantom script
+            },
+            "args": ["test"]
+        },
+    ]
+}
