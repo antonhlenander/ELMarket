@@ -181,7 +181,7 @@ class ElectricitySupplyEnv(ph.PhantomEnv):
 
         # Define Network and create connections between Actors
         network = ph.Network(agents)
-
+        
         # Connect the shop to the factory
         network.add_connection(generator_id, customer_id)
 

@@ -1,29 +1,12 @@
-import sys
-print(sys.argv)
-from typing import List, Tuple
-import logging
-
+import phantom as ph
 import gymnasium as gym
-import matplotlib.pyplot as plt
 import numpy as np
-import phantom as ph # type: ignore
-from phantom.types import AgentID  # type: ignore
+from phantom.types import AgentID
 from typing import Iterable, Sequence
 from market_clearing import Market
 
-
-NUM_EPISODE_STEPS = 24
-CURRENT_STEP = 0
-
-NUM_CUSTOMERS = 1
-CUSTOMER_MAX_DEMAND = 2200
-MAX_BID_PRICE = 30
-
-LOG_LEVEL = "DEBUG"
-
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("electricity-market")
-logger.setLevel(LOG_LEVEL)
+# Message Payloads
+##############################################################
 
 
 @ph.msg_payload()
@@ -170,7 +153,7 @@ class ExchangeAgent(ph.Agent):
             # Create message for both seller and buyer
             msg1 = (seller_id, decoded_cleared_bid)
             msg2 = (buyer_id, decoded_cleared_bid)
-            logger.debug("Cleared bid between: %s and %s for %s MWh at cost: %s", seller_id, buyer_id, mwh, price)
+            #logger.debug("Cleared bid between: %s and %s for %s MWh at cost: %s", seller_id, buyer_id, mwh, price)
             msgs.extend((msg1, msg2))  # TODO: this is possibly wrong
 
         return msgs
@@ -198,7 +181,7 @@ class GeneratorAgent(ph.Agent):
     def handle_cleared_bid(self, _ctx: ph.Context, msg: ph.Message):
         self.supplied_capacity = msg.payload.mwh
         self.capacity_left -= msg.payload.mwh
-        logger.debug("Generator Agent %s supplies: %s to %s at price %s", self.id, msg.payload.mwh, msg.payload.buyer_id, msg.payload.price)
+        #logger.debug("Generator Agent %s supplies: %s to %s at price %s", self.id, msg.payload.mwh, msg.payload.buyer_id, msg.payload.price)
 
     def pre_message_resolution(self, ctx: ph.Context):
         self.capacity_left = self.capacity
@@ -234,7 +217,7 @@ class SimpleDemandAgent(ph.Agent):
     def handle_cleared_bid(self, _ctx: ph.Context, msg: ph.Message):
         self.satisfied_demand = msg.payload.mwh
         self.demand_left -= msg.payload.mwh
-        logger.debug("Customer Agent %s receives: %s from %s at price %s", self.id, msg.payload.mwh, msg.payload.seller_id, msg.payload.price)
+        #logger.debug("Customer Agent %s receives: %s from %s at price %s", self.id, msg.payload.mwh, msg.payload.seller_id, msg.payload.price)
 
     def pre_message_resolution(self, ctx: ph.Context):
         self.demand_left = self.demand
@@ -358,114 +341,3 @@ class DummyAgent(ph.StrategicAgent):
 #     def reset(self):
 #         self.satisfied_demand = 0 # Possibly just delete this function if no reset is needed between episodes?
 #         self.missed_demand = 0 
-
-
-
-class EL_Clearing_Env(ph.FiniteStateMachineEnv):
-    def __init__(self, num_steps=24, **kwargs):
-        # TODO: Add multiple buyers and sellers
-  
-        # Predefine supply and demand bids
-        supply_bids = [("G1", 120, 0), ("G2", 50, 0), ("G3", 200, 15), 
-                ("G4", 400, 30), ("G5", 60, 32.5), ("G6", 50, 34),
-                ("G7", 60, 36), ("G8", 100, 37.5), ("G9", 70, 39),
-                ("G10", 50, 40), ("G11", 70, 60), ("G12", 45, 70),
-                ("G13", 50, 100), ("G14", 60, 150), ("G15", 50, 200)
-                ]
-        
-        demand_bids = [("D1", 250, 200), ("D2", 300, 110), ("D3", 120, 100), 
-                    ("D4", 80, 90), ("D5", 40, 85), ("D6", 70, 75),
-                    ("D7", 60, 65), ("D8", 45, 40), ("D9", 30, 38),
-                    ("D10", 35, 31), ("D11", 25, 24), ("D12", 10, 16),
-                        ]
-
-        # Define Agent IDs
-        generator_ids = [f"G{i+1}" for i in range(len(supply_bids))]
-        buyer_ids = [f"D{i+1}" for i in range(len(demand_bids))]
-
-        # Initiate Agents
-        dummy_agent = DummyAgent("DummyAgent")
-        exchange_agent = ExchangeAgent("ExchangeAgent")
-        generator_agents = []
-        for gid, mwh, price in supply_bids:
-            generator_agents.append(GeneratorAgent(gid, "ExchangeAgent", mwh, price))
-        buyer_agents = []
-        for id, mwh, price in demand_bids:
-            buyer_agents.append(SimpleDemandAgent(id, "ExchangeAgent", mwh, price))
-
-        # Define Network and create connections between Actors
-        agents = [exchange_agent, dummy_agent] + generator_agents + buyer_agents
-        network = ph.Network(agents)
-
-        # Connect the agents
-        network.add_connection("ExchangeAgent", "DummyAgent")
-        for gid in generator_ids:
-            network.add_connection("ExchangeAgent", gid)
-        
-        for id in buyer_ids:
-            network.add_connection("ExchangeAgent", id)
-
-        # Setup the FSM stages
-        stages = [
-            ph.FSMStage(
-                stage_id="Bid Stage",
-                next_stages=["Clearing Stage"],
-                acting_agents=["DummyAgent"] + buyer_ids + generator_ids,
-            ),
-            ph.FSMStage(
-                stage_id="Clearing Stage",
-                next_stages=["Bid Stage"],
-                acting_agents=["DummyAgent", "ExchangeAgent"],
-            )
-        ]
-
-        super().__init__(
-            num_steps=num_steps,
-            network=network,
-            initial_stage="Bid Stage",
-            stages=stages,
-            **kwargs,
-        )
-
-# TODO: correct metrics
-# metrics = {
-#     "CUSTOMER/demand": ph.metrics.SimpleAgentMetric("CUSTOMER", "demand", "mean"),
-#     "CUSTOMER/satisfied_demand": ph.metrics.SimpleAgentMetric("CUSTOMER", "satisfied_demand", "mean"),
-#     "CUSTOMER/missed_demand": ph.metrics.SimpleAgentMetric("CUSTOMER", "missed_demand", "mean"),
-#     "GENERATOR/current_price": ph.metrics.SimpleAgentMetric("GENERATOR", "current_price", "mean")
-# }
-
-# Setup env
-env = EL_Clearing_Env()
-
-# Run
-observations, _ = env.reset()
-rewards = {}
-infos = {}
-
-while env.current_step < env.num_steps:
-
-    logger.debug("Current step is %s", env.current_step)
-    stage = env.current_stage
-    logger.debug("Current stage is %s", env.current_stage)
-
-    # print("\nobservations:")
-    # print(observations)
-    # print("\nrewards:")
-    # print(rewards)
-    # print("\ninfos:")
-    # print(infos)
-
-    actions = {}
-    for aid, obs in observations.items():
-        agent = env.agents[aid]
-        if isinstance(agent, DummyAgent):
-            actions[aid] = 0.9
-
-    #print("\nactions:")
-    #print(actions)
-
-    step = env.step(actions)
-    observations = step.observations
-    rewards = step.rewards
-    infos = step.infos
